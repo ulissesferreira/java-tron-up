@@ -1,0 +1,44 @@
+{
+  "name": "@ulissesferreira/java-tron-up",
+  "version": "0.1.1",
+  "description": "java-tron runtime installer for MetaMask E2E tests",
+  "homepage": "https://github.com/ulissesferreira/java-tron-up#readme",
+  "bugs": {
+    "url": "https://github.com/ulissesferreira/java-tron-up/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/ulissesferreira/java-tron-up.git"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "java-tron-up": "dist/bin/java-tron-up.js"
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node -e \"require('node:fs').chmodSync('dist/bin/java-tron-up.js', 0o755)\"",
+    "clean": "rm -rf dist",
+    "prepack": "npm run clean && npm run build",
+    "start": "tsx src/bin/java-tron-up.ts",
+    "test": "tsx --test src/**/*.test.ts",
+    "java-tron-up": "tsx src/bin/java-tron-up.ts"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.13",
+    "tsx": "^4.20.6",
+    "typescript": "~5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT"
+}
