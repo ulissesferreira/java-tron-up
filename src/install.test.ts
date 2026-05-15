@@ -1,23 +1,15 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { afterEach, describe, it } from 'node:test';
 import {
   JAVA_TRON_DEFAULT_FULL_NODE,
-  JAVA_TRON_DEFAULT_JAVA_RUNTIME,
   cleanJavaTronCache,
   getJavaTronCacheDirectory,
-  installJavaRuntime,
   installJavaTron,
   parseJavaTronInstallCliOptions,
   readJavaTronInstallOptionsFromPackageJson,
@@ -34,15 +26,15 @@ describe('java-tron-up installer', () => {
     tempDirs = [];
   });
 
-  it('pins a java-tron release and Java runtime', () => {
+  it('pins the current latest java-tron release', () => {
     assert.equal(JAVA_TRON_DEFAULT_FULL_NODE.version, 'GreatVoyage-v4.8.1');
     assert.equal(
       JAVA_TRON_DEFAULT_FULL_NODE.platforms['darwin-arm64']?.checksum,
       '694431860ee76fc986ed495f9ec19f29ed3bd752a394386e7b3b9886b2292f59',
     );
     assert.equal(
-      JAVA_TRON_DEFAULT_JAVA_RUNTIME.platforms['linux-x64']?.checksum,
-      '39abf1dc6798b5f6b8e9dca4e78994da316a3f990e444c2c483ea04f7f882cf2',
+      JAVA_TRON_DEFAULT_FULL_NODE.platforms['linux-x64']?.checksum,
+      '0e67b2fe75d7077750e73c4fa20725c6e9824657275d96be256ae5da681f9945',
     );
   });
 
@@ -56,17 +48,6 @@ describe('java-tron-up installer', () => {
     );
   });
 
-  it('uses the shared MetaMask cache when Yarn global cache is enabled', () => {
-    const cwd = createTempDir();
-    const homeDirectory = createTempDir();
-    writeFileSync(join(cwd, '.yarnrc.yml'), 'enableGlobalCache: true\n');
-
-    assert.equal(
-      getJavaTronCacheDirectory({ cwd, homeDirectory }),
-      join(homeDirectory, '.cache', 'metamask'),
-    );
-  });
-
   it('reads pinned installer options from package.json', () => {
     const cwd = createTempDir();
     writeFileSync(
@@ -76,22 +57,11 @@ describe('java-tron-up installer', () => {
           fullNode: {
             platforms: {
               'linux-x64': {
-                checksum:
-                  '0e67b2fe75d7077750e73c4fa20725c6e9824657275d96be256ae5da681f9945',
+                checksum: sha256('jar-from-package-json'),
                 url: 'https://example.test/FullNode.jar',
               },
             },
-            version: 'test-fullnode',
-          },
-          javaRuntime: {
-            platforms: {
-              'linux-x64': {
-                checksum:
-                  '39abf1dc6798b5f6b8e9dca4e78994da316a3f990e444c2c483ea04f7f882cf2',
-                url: 'https://example.test/java-runtime.tar.gz',
-              },
-            },
-            version: 'test-java',
+            version: 'test-version',
           },
         },
       }),
@@ -101,22 +71,11 @@ describe('java-tron-up installer', () => {
       fullNode: {
         platforms: {
           'linux-x64': {
-            checksum:
-              '0e67b2fe75d7077750e73c4fa20725c6e9824657275d96be256ae5da681f9945',
+            checksum: sha256('jar-from-package-json'),
             url: 'https://example.test/FullNode.jar',
           },
         },
-        version: 'test-fullnode',
-      },
-      javaRuntime: {
-        platforms: {
-          'linux-x64': {
-            checksum:
-              '39abf1dc6798b5f6b8e9dca4e78994da316a3f990e444c2c483ea04f7f882cf2',
-            url: 'https://example.test/java-runtime.tar.gz',
-          },
-        },
-        version: 'test-java',
+        version: 'test-version',
       },
     });
   });
@@ -131,11 +90,7 @@ describe('java-tron-up installer', () => {
         '--full-node-url',
         'https://example.test/FullNode.jar',
         '--full-node-checksum',
-        'fullnode-hash',
-        '--java-runtime-url',
-        'https://example.test/java-runtime.tar.gz',
-        '--java-runtime-checksum',
-        'java-hash',
+        'abc123',
       ]),
       {
         binDirectory: '/tmp/bin',
@@ -143,16 +98,8 @@ describe('java-tron-up installer', () => {
         fullNode: {
           platforms: {
             current: {
-              checksum: 'fullnode-hash',
+              checksum: 'abc123',
               url: 'https://example.test/FullNode.jar',
-            },
-          },
-        },
-        javaRuntime: {
-          platforms: {
-            current: {
-              checksum: 'java-hash',
-              url: 'https://example.test/java-runtime.tar.gz',
             },
           },
         },
@@ -160,17 +107,17 @@ describe('java-tron-up installer', () => {
     );
   });
 
-  it('downloads, verifies, caches, and installs java-tron wrappers', async () => {
+  it('downloads, verifies, caches, and installs the java-tron wrapper', async () => {
     const cwd = createTempDir();
     const cacheDirectory = join(cwd, '.metamask', 'cache');
     const binDirectory = join(cwd, 'node_modules', '.bin');
     const downloads: { destination: string; url: string }[] = [];
-    const fullNodeContent = 'fake FullNode jar';
-    const javaRuntimeContent = 'fake Java runtime';
+    const fullNodeContent = 'fake fullnode jar';
+    const javaArchiveContent = 'fake java archive';
     const dependencies = createDependencies({
       downloads,
       fullNodeContent,
-      javaRuntimeContent,
+      javaArchiveContent,
     });
 
     const result = await installJavaTron(
@@ -178,49 +125,106 @@ describe('java-tron-up installer', () => {
         binDirectory,
         cacheDirectory,
         cwd,
-        fullNode: createFullNodeConfig(fullNodeContent),
-        javaRuntime: createJavaRuntimeConfig(javaRuntimeContent),
-        platform: 'linux-x64',
+        fullNode: {
+          platforms: {
+            'darwin-arm64': {
+              checksum: sha256(fullNodeContent),
+              url: 'https://example.test/FullNode-aarch64.jar',
+            },
+          },
+          version: 'test-java-tron',
+        },
+        javaRuntime: {
+          platforms: {
+            'darwin-arm64': {
+              checksum: sha256(javaArchiveContent),
+              url: 'https://example.test/java.tar.gz',
+            },
+          },
+          version: 'test-java',
+        },
+        platform: 'darwin-arm64',
       },
       dependencies,
     );
 
     assert.equal(result.cacheHit, false);
-    assert.equal(result.version, 'test-fullnode');
+    assert.equal(result.version, 'test-java-tron');
     assert.equal(result.binaryPath, join(binDirectory, 'java-tron'));
-    assert.ok(result.fullNodeJar.endsWith('/FullNode.jar'));
-    assert.ok(result.javaBinary.endsWith('/bin/java'));
     assert.equal(readFileSync(result.fullNodeJar, 'utf8'), fullNodeContent);
+    assert.ok(result.javaBinary.endsWith('/bin/java'));
+    assert.ok(existsSync(result.binaryPath));
     assert.deepEqual(
       downloads.map(({ url }) => url),
-      [
-        'https://example.test/java-runtime.tar.gz',
-        'https://example.test/FullNode.jar',
-      ],
+      ['https://example.test/java.tar.gz', 'https://example.test/FullNode-aarch64.jar'],
     );
 
-    const wrapperOutput = execFileSync(result.binaryPath, ['--version'], {
+    const wrapperOutput = execFileSync(process.execPath, [result.binaryPath, '-v'], {
       encoding: 'utf8',
     });
-    assert.match(wrapperOutput, /^java -jar .*FullNode\.jar --version\n$/u);
+    assert.equal(wrapperOutput.trim(), 'java -jar FullNode.jar -v');
   });
 
-  it('reuses cached fullnode and Java artifacts without downloading again', async () => {
+  it('reuses cached artifacts without downloading again', async () => {
     const cwd = createTempDir();
     const cacheDirectory = join(cwd, '.metamask', 'cache');
     const binDirectory = join(cwd, 'node_modules', '.bin');
-    const fullNodeContent = 'cached FullNode jar';
-    const javaRuntimeContent = 'cached Java runtime';
-    const fullNode = createFullNodeConfig(fullNodeContent);
-    const javaRuntime = createJavaRuntimeConfig(javaRuntimeContent);
+    const fullNodeContent = 'cached fullnode jar';
+    const javaArchiveContent = 'cached java archive';
 
     await installJavaTron(
-      { binDirectory, cacheDirectory, cwd, fullNode, javaRuntime, platform: 'linux-x64' },
-      createDependencies({ fullNodeContent, javaRuntimeContent }),
+      {
+        binDirectory,
+        cacheDirectory,
+        cwd,
+        fullNode: {
+          platforms: {
+            'linux-x64': {
+              checksum: sha256(fullNodeContent),
+              url: 'https://example.test/FullNode.jar',
+            },
+          },
+          version: 'cached-version',
+        },
+        javaRuntime: {
+          platforms: {
+            'linux-x64': {
+              checksum: sha256(javaArchiveContent),
+              url: 'https://example.test/java.tar.gz',
+            },
+          },
+          version: 'cached-java',
+        },
+        platform: 'linux-x64',
+      },
+      createDependencies({ fullNodeContent, javaArchiveContent }),
     );
 
     const result = await installJavaTron(
-      { binDirectory, cacheDirectory, cwd, fullNode, javaRuntime, platform: 'linux-x64' },
+      {
+        binDirectory,
+        cacheDirectory,
+        cwd,
+        fullNode: {
+          platforms: {
+            'linux-x64': {
+              checksum: sha256(fullNodeContent),
+              url: 'https://example.test/FullNode.jar',
+            },
+          },
+          version: 'cached-version',
+        },
+        javaRuntime: {
+          platforms: {
+            'linux-x64': {
+              checksum: sha256(javaArchiveContent),
+              url: 'https://example.test/java.tar.gz',
+            },
+          },
+          version: 'cached-java',
+        },
+        platform: 'linux-x64',
+      },
       {
         downloadFile: async () => {
           throw new Error('cache miss');
@@ -229,27 +233,7 @@ describe('java-tron-up installer', () => {
     );
 
     assert.equal(result.cacheHit, true);
-  });
-
-  it('finds Java in nested runtime archive roots', async () => {
-    const cwd = createTempDir();
-    const javaRuntimeContent = 'nested runtime archive';
-
-    const javaBinary = await installJavaRuntime(
-      {
-        cacheDirectory: join(cwd, '.metamask', 'cache'),
-        javaRuntime: createJavaRuntimeConfig(javaRuntimeContent),
-        platform: 'linux-x64',
-      },
-      createDependencies({
-        fullNodeContent: 'unused',
-        javaRuntimeContent,
-        javaRoot: 'nested/zulu',
-      }),
-    );
-
-    assert.ok(javaBinary.endsWith('/nested/zulu/bin/java'));
-    assert.equal(existsSync(javaBinary), true);
+    assert.equal(readFileSync(result.fullNodeJar, 'utf8'), fullNodeContent);
   });
 
   it('cleans only the java-tron-up cache namespace', async () => {
@@ -278,63 +262,32 @@ describe('java-tron-up installer', () => {
 function createDependencies({
   downloads = [],
   fullNodeContent,
-  javaRoot = 'zulu',
-  javaRuntimeContent,
+  javaArchiveContent,
 }: {
   downloads?: { destination: string; url: string }[];
   fullNodeContent: string;
-  javaRoot?: string;
-  javaRuntimeContent: string;
+  javaArchiveContent: string;
 }): JavaTronInstallDependencies {
   return {
     downloadFile: async (url, destination) => {
       downloads.push({ destination, url });
       await writeFile(
         destination,
-        url.endsWith('FullNode.jar') ? fullNodeContent : javaRuntimeContent,
+        url.includes('FullNode') ? fullNodeContent : javaArchiveContent,
       );
     },
     extractArchive: async (_archivePath, destination) => {
-      const binDirectory = join(destination, javaRoot, 'bin');
-      await mkdir(binDirectory, { recursive: true });
-      await writeExecutable(join(binDirectory, 'java'), 'java');
+      const javaBinary = join(destination, 'jdk', 'bin', 'java');
+      await mkdir(join(destination, 'jdk', 'bin'), { recursive: true });
+      await writeFile(
+        javaBinary,
+        '#!/bin/sh\nflag="$1"\njar="$2"\nshift 2\necho "java $flag $(basename "$jar") $*"\n',
+      );
+      chmodSync(javaBinary, 0o755);
     },
   };
 }
 
-function createFullNodeConfig(content: string) {
-  return {
-    platforms: {
-      'linux-x64': {
-        checksum: sha256(content),
-        url: 'https://example.test/FullNode.jar',
-      },
-    },
-    version: 'test-fullnode',
-  };
+function sha256(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
 }
-
-function createJavaRuntimeConfig(content: string) {
-  return {
-    platforms: {
-      'linux-x64': {
-        checksum: sha256(content),
-        url: 'https://example.test/java-runtime.tar.gz',
-      },
-    },
-    version: 'test-java',
-  };
-}
-
-async function writeExecutable(path: string, name: string): Promise<void> {
-  await writeFile(
-    path,
-    `#!/usr/bin/env node\nconsole.log(${JSON.stringify(name)} + ' ' + process.argv.slice(2).join(' '));\n`,
-    { mode: 0o755 },
-  );
-}
-
-function sha256(content: string): string {
-  return createHash('sha256').update(content).digest('hex');
-}
-

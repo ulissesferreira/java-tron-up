@@ -30,7 +30,9 @@ async function main(): Promise<void> {
   });
 
   console.log(
-    `[java-tron-up] java-tron ${result.cacheHit ? 'found in cache' : 'installed'} at ${result.fullNodeJar}`,
+    `[java-tron-up] java-tron ${
+      result.cacheHit ? 'found in cache' : 'installed'
+    } at ${result.fullNodeJar}`,
   );
   console.log(`[java-tron-up] Java runtime installed at ${result.javaBinary}`);
   console.log(`[java-tron-up] binary installed at ${result.binaryPath}`);
@@ -60,4 +62,3 @@ Options:
   --platform <platform>          Override platform key, e.g. linux-x64.
   --help                         Show this help text.`);
 }
-

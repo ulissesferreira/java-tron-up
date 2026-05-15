@@ -246,6 +246,7 @@ export function parseJavaTronInstallCliOptions(
       },
     };
   }
+
   if (javaRuntime.url || javaRuntime.checksum) {
     options.javaRuntime = {
       platforms: {
@@ -270,9 +271,8 @@ export async function installJavaTron(
   const binDirectory =
     options.binDirectory ?? join(cwd, 'node_modules', '.bin');
   const platformKey = options.platform ?? getPlatformKey();
-  const fullNode = options.fullNode ?? JAVA_TRON_DEFAULT_FULL_NODE;
   const fullNodeConfig = resolvePlatformConfig(
-    fullNode,
+    options.fullNode ?? JAVA_TRON_DEFAULT_FULL_NODE,
     platformKey,
     'java-tron FullNode',
   );
@@ -305,7 +305,7 @@ export async function installJavaTron(
     checksum: fullNodeConfig.checksum,
     fullNodeJar: fullNodeResult.fullNodeJar,
     javaBinary,
-    version: fullNode.version,
+    version: (options.fullNode ?? JAVA_TRON_DEFAULT_FULL_NODE).version,
   };
 }
 
@@ -561,13 +561,15 @@ async function openDownloadStream(
         headers.location
       ) {
         response.resume();
-
         if (redirectsRemaining <= 0) {
           rejectPromise(new Error(`Too many redirects downloading ${url}`));
           return;
         }
 
-        openDownloadStream(new URL(headers.location, url), redirectsRemaining - 1)
+        openDownloadStream(
+          new URL(headers.location, url),
+          redirectsRemaining - 1,
+        )
           .then(resolvePromise)
           .catch(rejectPromise);
         return;
@@ -619,7 +621,9 @@ async function runCommand(command: string, args: string[]): Promise<void> {
       }
 
       rejectPromise(
-        new Error(`${command} ${args.join(' ')} exited with code ${code}: ${stderr}`),
+        new Error(
+          `${command} ${args.join(' ')} exited with code ${code}: ${stderr}`,
+        ),
       );
     });
   });
@@ -637,7 +641,6 @@ function findJavaBinary(root: string): string | undefined {
 
   for (const entry of readdirSync(root)) {
     const child = join(root, entry);
-
     if (!isDirectory(child)) {
       continue;
     }
@@ -678,7 +681,6 @@ function normalizeSystemArchitecture(architecture = osArch()): string {
       shell: false,
       stdio: ['ignore', 'pipe', 'ignore'],
     });
-
     if (result.stdout.trim() === '1') {
       return 'arm64';
     }
@@ -691,7 +693,6 @@ function readCliValue(option: string, value: string | undefined): string {
   if (!value || value.startsWith('--')) {
     throw new Error(`${option} requires a value.`);
   }
-
   return value;
 }
 
@@ -703,4 +704,3 @@ function isFileMissingError(error: unknown): boolean {
     error.code === 'ENOENT'
   );
 }
-
