@@ -13,6 +13,7 @@ import {
   readFile,
   rename,
   rm,
+  unlink,
   writeFile,
 } from 'node:fs/promises';
 import { request as requestHttp } from 'node:http';
@@ -454,6 +455,11 @@ async function installJavaTronBinary({
   const relativeFullNodeJar = relative(binDirectory, fullNodeJar);
 
   await mkdir(binDirectory, { recursive: true });
+  await unlink(binaryPath).catch((error) => {
+    if (!isFileMissingError(error)) {
+      throw error;
+    }
+  });
   await writeFile(
     binaryPath,
     `#!/usr/bin/env node

@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -163,6 +172,48 @@ describe('java-tron-up installer', () => {
       encoding: 'utf8',
     });
     assert.equal(wrapperOutput.trim(), 'java -jar FullNode.jar -v');
+  });
+
+  it('replaces stale bin symlinks without modifying their targets', async () => {
+    const cwd = createTempDir();
+    const cacheDirectory = join(cwd, '.metamask', 'cache');
+    const binDirectory = join(cwd, 'node_modules', '.bin');
+    const fullNodeContent = 'fake fullnode jar';
+    const javaArchiveContent = 'fake java archive';
+    const staleTarget = join(cwd, 'stale-java-tron-target');
+
+    await mkdir(binDirectory, { recursive: true });
+    writeFileSync(staleTarget, 'do not overwrite');
+    symlinkSync(staleTarget, join(binDirectory, 'java-tron'));
+
+    const result = await installJavaTron(
+      {
+        binDirectory,
+        cacheDirectory,
+        cwd,
+        fullNode: {
+          platforms: {
+            'darwin-arm64': {
+              checksum: sha256(fullNodeContent),
+              url: 'https://example.test/FullNode-aarch64.jar',
+            },
+          },
+        },
+        javaRuntime: {
+          platforms: {
+            'darwin-arm64': {
+              checksum: sha256(javaArchiveContent),
+              url: 'https://example.test/java.tar.gz',
+            },
+          },
+        },
+        platform: 'darwin-arm64',
+      },
+      createDependencies({ fullNodeContent, javaArchiveContent }),
+    );
+
+    assert.equal(readFileSync(staleTarget, 'utf8'), 'do not overwrite');
+    assert.equal(lstatSync(result.binaryPath).isSymbolicLink(), false);
   });
 
   it('reuses cached artifacts without downloading again', async () => {

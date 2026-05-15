@@ -1,10 +1,10 @@
 # `@ulissesferreira/java-tron-up`
 
-`java-tron-up` installs the native java-tron runtime for local development and
-CI. It follows the same runtime-only shape as `@metamask/foundryup`: this
-package installs external runtime artifacts into the MetaMask cache and exposes a
-binary in `node_modules/.bin`; the consuming test harness owns process startup,
-private-network config, readiness checks, and seeding.
+`java-tron-up` installs a pinned native java-tron runtime for local development
+and CI. It follows the same runtime-only shape as `@metamask/foundryup`: this
+package installs external runtime artifacts into the MetaMask cache and exposes
+binaries in `node_modules/.bin`; the consuming test harness owns process
+startup, private-network config, readiness checks, and seeding.
 
 This package does not use Docker and does not start or seed a TRON node.
 
@@ -13,13 +13,7 @@ This package does not use Docker and does not start or seed a TRON node.
 Install the package in the consuming repo:
 
 ```bash
-yarn add @ulissesferreira/java-tron-up
-```
-
-Install java-tron:
-
-```bash
-yarn bin java-tron-up
+yarn add --dev @ulissesferreira/java-tron-up
 ```
 
 For Yarn v4 projects, it is usually simplest to add package scripts in the
@@ -34,7 +28,13 @@ consuming repo:
 }
 ```
 
-Then run the installed binary from the consuming repo:
+Install java-tron and its managed Java runtime:
+
+```bash
+yarn java-tron-up install
+```
+
+Run the installed node wrapper:
 
 ```bash
 node_modules/.bin/java-tron -c /absolute/path/to/fullnode.conf --witness
@@ -57,18 +57,40 @@ itself.
 java -jar FullNode.jar "$@"
 ```
 
-The default java-tron release is `GreatVoyage-v4.8.1`.
+## CLI
 
-java-tron `4.8.1` supports Linux and macOS on x86_64 and arm64. Its current
-runtime requirement is JDK 8 for x86_64 and JDK 17 for arm64, so this package
-installs Azul Zulu Java 8 on x64 platforms and Azul Zulu Java 17 on arm64
-platforms.
+```bash
+java-tron-up [install] [options]
+java-tron-up cache clean [options]
+```
+
+Options:
+
+- `--bin-directory <path>`: directory for generated wrappers. Defaults to
+  `node_modules/.bin`.
+- `--cache-directory <path>`: artifact cache directory. Defaults to
+  `.metamask/cache`.
+- `--full-node-url <url>` and `--full-node-checksum <hash>`: override the
+  FullNode jar for the current platform.
+- `--java-runtime-url <url>` and `--java-runtime-checksum <hash>`: override the
+  Java runtime archive for the current platform.
+- `--platform <platform>`: override platform selection, for example
+  `linux-x64`.
+
+## Default Release
+
+The package currently pins java-tron `GreatVoyage-v4.8.1` for `darwin-arm64`,
+`darwin-x64`, `linux-arm64`, and `linux-x64`.
+
+java-tron `4.8.1` requires JDK 8 for x86_64 and JDK 17 for arm64, so this
+package installs Azul Zulu Java 8 on x64 platforms and Azul Zulu Java 17 on
+arm64 platforms.
 
 ## Cache
 
 The cache defaults to `.metamask/cache` in the current repo. If `.yarnrc.yml`
-contains `enableGlobalCache: true`, the cache moves to
-`~/.cache/metamask`, matching the foundryup behavior.
+contains `enableGlobalCache: true`, the cache moves to `~/.cache/metamask`,
+matching the `@metamask/foundryup` behavior.
 
 Clean only this package's cache namespace:
 

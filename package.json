@@ -1,7 +1,15 @@
 {
   "name": "@ulissesferreira/java-tron-up",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "java-tron runtime installer for MetaMask E2E tests",
+  "homepage": "https://github.com/ulissesferreira/java-tron-up#readme",
+  "bugs": {
+    "url": "https://github.com/ulissesferreira/java-tron-up/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/ulissesferreira/java-tron-up.git"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
